@@ -1,11 +1,11 @@
 from PySide6.QtCore import QObject, QEvent, Qt, Signal
 from PySide6.QtWidgets import QLineEdit, QTextEdit, QPlainTextEdit, QApplication
-from PySide6.QtGui import QTextCursor
+from PySide6.QtGui import QTextCharFormat, QTextCursor
 
 try:
     from .vietnamese_input_method import VietnameseEngine
 except ImportError:
-    from input_method.vietnamese_input_method import VietnameseEngine
+    from vietnamese_input_method import VietnameseEngine
 
 # ---------------------------------------------------------------------------
 # Map Qt.Key -> FcitxKeySym (X11 keysym)
@@ -91,6 +91,7 @@ class InputManager(QObject):
         # cursor. Cursor luôn nằm ở cuối span.
         self._preedit_len = 0
         self._preedit_widget = None
+        self._preedit_extra_widget = None
 
     # ------------------------------------------------------------
     # Helpers
@@ -122,7 +123,9 @@ class InputManager(QObject):
         if isinstance(widget, QLineEdit):
             widget.insert(text)
         else:
-            widget.textCursor().insertText(text)
+            cursor = widget.textCursor()
+            cursor.insertText(text)
+            widget.setTextCursor(cursor)
 
     @staticmethod
     def _has_selection(widget) -> bool:
@@ -140,6 +143,13 @@ class InputManager(QObject):
             cursor.removeSelectedText()
             widget.setTextCursor(cursor)
 
+    @staticmethod
+    def _surrounding_text(widget) -> tuple:
+        if isinstance(widget, QLineEdit):
+            return widget.text(), widget.cursorPosition()
+        cursor = widget.textCursor()
+        return widget.toPlainText(), cursor.position()
+
     def _apply_text(self, widget, text: str) -> None:
         """Thay span hiện tại bằng text, hoặc chèn mới nếu chưa có span."""
         if self._preedit_len > 0 and widget is self._preedit_widget:
@@ -149,19 +159,21 @@ class InputManager(QObject):
                 self._delete_range(widget, start, pos)
                 self._insert_at_cursor(widget, text)
                 self._preedit_len = len(text)
+                self._apply_preedit_underline(widget)
                 return
             # Span lệch (text đổi ngoài kiểm soát) — chèn mới.
             self._clear_span_state()
         self._insert_at_cursor(widget, text)
         self._preedit_len = len(text)
         self._preedit_widget = widget
+        self._apply_preedit_underline(widget)
 
     def _erase_preedit(self, widget) -> None:
         """Xóa span, đưa cursor về đầu span."""
         if self._preedit_len == 0 or widget is not self._preedit_widget:
             self._clear_span_state()
             return
-        _, pos = self.__pos_in_block(widget)
+        _, pos = self._cursor_pos_in_block(widget)
         start = pos - self._preedit_len
         self._clear_span_state()
         if start < 0:
@@ -174,8 +186,36 @@ class InputManager(QObject):
         self._clear_span_state()
 
     def _clear_span_state(self) -> None:
+        self._clear_preedit_underline()
         self._preedit_len = 0
         self._preedit_widget = None
+
+    def _apply_preedit_underline(self, widget) -> None:
+        """Hiển thị preedit bằng underline mà không đổi định dạng văn bản."""
+        if not isinstance(widget, (QTextEdit, QPlainTextEdit)):
+            return
+        if self._preedit_len <= 0 or widget is not self._preedit_widget:
+            return
+        _, pos = self._cursor_pos_in_block(widget)
+        start = pos - self._preedit_len
+        if start < 0:
+            return
+        cursor = widget.textCursor()
+        block_start = cursor.block().position()
+        cursor.setPosition(block_start + start)
+        cursor.setPosition(block_start + pos, QTextCursor.KeepAnchor)
+        fmt = QTextCharFormat()
+        fmt.setUnderlineStyle(QTextCharFormat.SingleUnderline)
+        selection = QTextEdit.ExtraSelection()
+        selection.cursor = cursor
+        selection.format = fmt
+        widget.setExtraSelections([selection])
+        self._preedit_extra_widget = widget
+
+    def _clear_preedit_underline(self) -> None:
+        if self._preedit_extra_widget is not None:
+            self._preedit_extra_widget.setExtraSelections([])
+            self._preedit_extra_widget = None
 
     def _toggle_enabled(self, widget) -> None:
         """Ctrl+Space: bật/tắt engine. Khi tắt, preedit đang có
@@ -250,6 +290,9 @@ class InputManager(QObject):
             self._clear_span_state()
             return super().eventFilter(watched, event)
 
+        surrounding_text, surrounding_cursor = self._surrounding_text(widget)
+        self.engine.set_surrounding_text(surrounding_text, surrounding_cursor)
+
         try:
             result = self.engine.process_key(keysym, mods, False)
         except TypeError:
@@ -259,7 +302,7 @@ class InputManager(QObject):
             except Exception:
                 import traceback
                 traceback.print_exc()
-                return super().eventFilter(watched,)
+                return super().eventFilter(watched, event)
         except Exception:
             import traceback
             traceback.print_exc()
@@ -275,6 +318,19 @@ class InputManager(QObject):
         preedit  = result.get("preedit", "")
         consumed = result.get("consumed", False)
 
+        # Flush không nuốt phím: span đã hiển thị trở thành text thật,
+        # sau đó để widget xử lý chính phím Return/Space/navigation.
+        if commit and not consumed:
+            if preedit_active:
+                self._apply_text(widget, commit)
+                self._clear_span_state()
+            if event.key() not in (Qt.Key_Return, Qt.Key_Enter,
+                                   Qt.Key_Space) and event.key() not in _NAVIGATION_KEYS:
+                if not preedit_active:
+                    self._apply_text(widget, commit)
+                    self._clear_span_state()
+            return super().eventFilter(watched, event)
+
         # ---- Engine xử lý phím. ----
         if consumed:
             if commit:
@@ -287,6 +343,15 @@ class InputManager(QObject):
             if preedit:
                 # Preedit mới: thay span (hoặc chèn mới), refresh span.
                 self._apply_text(widget, preedit)
+                return True
+
+            if preedit_active and event.key() == Qt.Key_Escape:
+                self._erase_preedit(widget)
+                return True
+
+            if preedit_active and event.key() == Qt.Key_Backspace:
+                self._erase_preedit(widget)
+                self.engine.reset()
                 return True
 
             # Consumed nhưng không hiển thị gì (ctrl+^, ctrl+r của Telex):

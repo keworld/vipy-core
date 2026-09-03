@@ -1,6 +1,9 @@
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
-from .vietnamese_phonology import VietnamesePhonology
+try:
+    from .vietnamese_phonology import VietnamesePhonology
+except ImportError:
+    from vietnamese_phonology import VietnamesePhonology
 
 @dataclass(frozen=True)
 class Action:
@@ -53,7 +56,6 @@ class InputSchema(ABC):
                         bare.startswith(d_stroke) or bare.endswith(d_stroke)):
 
                     mark = cls.MARK_PAIRS.get(d_char.lower() + key)
-
                     # Toggle Mark cho Stroke
                     if mark in base_marks:
                         return Action(value=mark, type='toggle_mark')
@@ -124,8 +126,8 @@ class TelexSchema(InputSchema):
         return 'telex'
 
     @classmethod
-    def toggle_lone_w(cls) -> None:
-        cls.LONE_W_ENABLED = not cls.LONE_W_ENABLED # toggle hai chiều
+    def set_lone_w(cls, enabled: bool) -> None:
+        cls.LONE_W_ENABLED = enabled
 
     @classmethod
     def match(cls, base_string: str, key: str) -> Action:

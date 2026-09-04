@@ -1,7 +1,9 @@
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
-
-from .vietnamese_phonology import VietnamesePhonology
+try:
+    from .vietnamese_phonology import VietnamesePhonology
+except ImportError:
+    from vietnamese_phonology import VietnamesePhonology
 
 @dataclass(frozen=True)
 class Action:

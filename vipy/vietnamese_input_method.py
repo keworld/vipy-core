@@ -14,11 +14,16 @@ Hợp đồng API:
   - activate() / deactivate() / reset()
   - set_config(key, value) / get_config(key) / save()
 """
-
-from .vietnamese_phonology import VietnamesePhonology
-from .input_schema import TelexSchema, VNISchema, Action
-from .syllable_dict import SyllableDict
-from .macro import apply_macro, load_macros
+try:
+    from .vietnamese_phonology import VietnamesePhonology
+    from .input_schema import TelexSchema, VNISchema, Action
+    from .syllable_dict import SyllableDict
+    from .macro import apply_macro, load_macros
+except ImportError:
+    from vietnamese_phonology import VietnamesePhonology
+    from input_schema import TelexSchema, VNISchema, Action
+    from syllable_dict import SyllableDict
+    from macro import apply_macro, load_macros
 
 # ---------------------------------------------------------------------------
 # Special key tokens passed by the Fcitx wrapper.

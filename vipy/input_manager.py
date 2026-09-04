@@ -1,8 +1,10 @@
 from PySide6.QtCore import QObject, QEvent, Qt, Signal
 from PySide6.QtWidgets import QLineEdit, QTextEdit, QPlainTextEdit, QApplication
 from PySide6.QtGui import QTextCharFormat, QTextCursor
-
-from .vietnamese_input_method import VietnameseEngine
+try:
+    from .vietnamese_input_method import VietnameseEngine
+except ImportError:
+    from vietnamese_input_method import VietnameseEngine
 
 # ---------------------------------------------------------------------------
 # Map Qt.Key -> key token understood by VietnameseEngine.

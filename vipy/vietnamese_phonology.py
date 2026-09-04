@@ -402,23 +402,21 @@ class VietnamesePhonology:
 
     def reconstruction(self, string: str) -> str:
         # 1. Trích xuất toàn bộ trạng thái
-        bare_str = self.bare(string)
+        base = self.bare(string)
         marks = self.word_mark(string)  # Trả về list[int], vd: [3, 4] hoặc [0]
         tone_idx = self.word_tone(string)
-
-        word = bare_str
 
         # 2. Ráp dấu phụ (mark) trước
         # Lặp qua từng mark để xử lý các từ có nhiều mark (vd: 'Đường' có mark 3 và 4)
         for mark_idx in marks:
             if mark_idx != 0:
-                word = self.place_mark(word, mark_idx)
+                base = self.place_mark(base, mark_idx)
 
         # 3. Ráp dấu thanh (tone) sau cùng
         # place_tone tự động bỏ qua nếu tone_idx = 0 theo đặc tả
-        word = self.place_tone(word, tone_idx)
+        base = self.place_tone(base, tone_idx)
 
-        return word
+        return base
 
     def word_tone(self, string: str) -> int:
         for ch in ud.normalize('NFD', string):

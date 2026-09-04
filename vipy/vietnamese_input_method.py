@@ -135,6 +135,7 @@ class VietnameseEngine:
                     self._literal = self._literal[:-1]
                 else:
                     self._base = self._base[:-1]
+                    self._base = self._phon.reconstruction(self._base)
 
                 self._sync_preedit()
 
@@ -166,8 +167,7 @@ class VietnameseEngine:
             action_type = action.type
             match action:
                 case Action(type="none"):
-                    new_word = word + key
-                    if self._phon.can_grow(new_word):
+                    if self._phon.can_grow(word + key):
                         word += key
                     else:
                         literal = key
@@ -185,8 +185,7 @@ class VietnameseEngine:
                     word += "Ư" if key.isupper() else "ư"
                     action_type = "lone_w"      # giữ cờ
 
-        word = self._phon.reconstruction(word)
-        self._base = word
+        self._base = self._phon.reconstruction(word)
         self._literal += literal
         self._sync_preedit()
 
@@ -220,7 +219,7 @@ class VietnameseEngine:
                            not self._phon.is_valid_shape(self._base))
         needs_recovery = bool(self._literal) or invalid
         if self._config["enable_auto_decompose"] and needs_recovery:
-            text = self.decompose(text)
+            text = self._decompose(text)
         elif self._config["enable_spell_check"] and needs_recovery:
             text = self._raw_text or text
         text = self._apply_macro(text)
@@ -231,9 +230,15 @@ class VietnameseEngine:
                 text = raw_macro
         return text, len(text)
 
-    def decompose(self, word: str) -> str:
-        """Return the original keystrokes for direct commitment to the app."""
-        return self._raw_text or word
+    def _decompose(self, text) -> str:
+        """Return the original keystrokes for direct commitment to the app.
+        :param text:
+        """
+        bare = self._phon.bare(text)
+        if bare ==  text:
+            return text
+        else:
+            return self._raw_text
 
     def get_raw_text(self) -> tuple:
         """

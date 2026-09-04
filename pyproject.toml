@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vipy"
+version = "1.0.0"
+description = "Vietnamese input method"
+
+[tool.setuptools.packages.find]
+include = ["vipy*"]
+
+[tool.setuptools.package-data]
+vipy = ["dict/*"]

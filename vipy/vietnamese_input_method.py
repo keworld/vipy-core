@@ -18,14 +18,9 @@ import csv
 import logging
 import os
 
-try:
-    from .vietnamese_phonology import VietnamesePhonology
-    from .input_schema import TelexSchema, VNISchema, Action
-    from .syllable_dict import SyllableDict
-except ImportError:
-    from vietnamese_phonology import VietnamesePhonology
-    from input_schema import TelexSchema, VNISchema, Action
-    from syllable_dict import SyllableDict
+from .vietnamese_phonology import VietnamesePhonology
+from .input_schema import TelexSchema, VNISchema, Action
+from .syllable_dict import SyllableDict
 
 # ---------------------------------------------------------------------------
 # KeySym constants (X11/FcitxKeySym)
@@ -70,7 +65,7 @@ def _keysym_to_char(keysym: int, mods: int) -> str:
     return ""
 
 
-class VietnameseEngine:
+class VietnameseInputMethod:
     def __init__(self, config: dict = None):
         self._phon = VietnamesePhonology()
         self._config = {

@@ -2,10 +2,7 @@ from PySide6.QtCore import QObject, QEvent, Qt, Signal
 from PySide6.QtWidgets import QLineEdit, QTextEdit, QPlainTextEdit, QApplication
 from PySide6.QtGui import QTextCharFormat, QTextCursor
 
-try:
-    from .vietnamese_input_method import VietnameseEngine
-except ImportError:
-    from vietnamese_input_method import VietnameseEngine
+from .vietnamese_input_method import VietnameseInputMethod
 
 # ---------------------------------------------------------------------------
 # Map Qt.Key -> FcitxKeySym (X11 keysym)
@@ -81,7 +78,7 @@ class InputManager(QObject):
     def __init__(self, app=None, config: dict = None,
                  commit_on_focus_out: bool = True):
         super().__init__(app if isinstance(app, QObject) else None)
-        self.engine = VietnameseEngine(config)
+        self.engine = VietnameseInputMethod(config)
         self.commit_on_focus_out = commit_on_focus_out
         if app is not None and hasattr(app, "installEventFilter"):
             app.installEventFilter(self)

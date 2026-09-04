@@ -61,6 +61,10 @@ class SyllableDict:
         else:
             candidates = [
                 os.path.join(here, "dict", "vietnamese.cm.dict"),
+                os.path.join(here, "..", "data", "vietnamese.cm.dict"),
+                os.path.expanduser(
+                    "~/.config/fcitx5-vipy/data/vietnamese.cm.dict"
+                ),
                 os.path.join(os.getcwd(), "dict", "vietnamese.cm.dict"),
             ]
         path = next((c for c in candidates if os.path.isfile(c)), candidates[0])

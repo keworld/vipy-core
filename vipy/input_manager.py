@@ -2,26 +2,27 @@ from PySide6.QtCore import QObject, QEvent, Qt, Signal
 from PySide6.QtWidgets import QLineEdit, QTextEdit, QPlainTextEdit, QApplication
 from PySide6.QtGui import QTextCharFormat, QTextCursor
 
-from .vietnamese_input_method import VietnameseInputMethod
+from .vietnamese_input_method import VietnameseEngine
 
 # ---------------------------------------------------------------------------
-# Map Qt.Key -> FcitxKeySym (X11 keysym)
+# Map Qt.Key -> key token understood by VietnameseEngine.
 # ---------------------------------------------------------------------------
-_QT_TO_KEYSYM = {
-    Qt.Key_Backspace: 0xFF08,
-    Qt.Key_Return:    0xFF0D,
-    Qt.Key_Enter:     0xFF0D,
-    Qt.Key_Escape:    0xFF1B,
- Qt.Key_Tab:       0xFF09,
-    Qt.Key_Left:      0xFF51,
-    Qt.Key_Up:        0xFF52,
-    Qt.Key_Right:     0xFF53,
-    Qt.Key_Down:      0xFF54,
-    Qt.Key_Home:      0xFF50,
-    Qt.Key_End:       0xFF57,
-    Qt.Key_PageUp:    0xFF55,
-    Qt.Key_PageDown:  0xFF56,
-    Qt.Key_Delete:    0xFFFF,
+_QT_TO_KEY = {
+    Qt.Key_Backspace: "BackSpace",
+    Qt.Key_Return:    "Return",
+    Qt.Key_Enter:     "Return",
+    Qt.Key_Escape:    "Escape",
+    Qt.Key_Tab:       "Tab",
+    Qt.Key_Left:      "Left",
+    Qt.Key_Up:        "Up",
+    Qt.Key_Right:     "Right",
+    Qt.Key_Down:      "Down",
+    Qt.Key_Home:      "Home",
+    Qt.Key_End:       "End",
+    Qt.Key_PageUp:    "PageUp",
+    Qt.Key_PageDown:  "PageDown",
+    Qt.Key_Delete:    "Delete",
+    Qt.Key_Space:     "Space",
 }
 
 MOD_SHIFT = 1 << 0
@@ -43,8 +44,8 @@ _NAVIGATION_KEYS = {
 }
 
 
-def _qt_event_to_keys(event) -> tuple:
-    """QKeyEvent -> (keysym, mods). (0, mods) nếu không map được."""
+def _qt_event_to_key(event) -> tuple:
+    """QKeyEvent -> (key string, mods). ('', mods) nếu không map được."""
     qt_key = event.key()
 
     mods = 0
@@ -52,18 +53,13 @@ def _qt_event_to_keys(event) -> tuple:
         if event.modifiers() & qt_mod:
             mods |= bit
 
-    if Qt.Key_Space <= qt_key <= Qt.Key_ydiaeresis:
-        keysym = qt_key
-    elif qt_key in _QT_TO_KEYSYM:
-        keysym = _QT_TO_KEYSYM[qt_key]
-    else:
-        return 0, mods
+    if qt_key in _QT_TO_KEY:
+        return _QT_TO_KEY[qt_key], mods
 
-    # Chuẩn hóa keysym chữ hoa về chữ thường (quy ước X11/fcitx5).
-    if 0x41 <= keysym <= 0x5A:            # 'A'-'Z'
-        keysym += 0x20
-
-    return keysym, mods
+    key = event.text()
+    if not key:
+        return "", mods
+    return key, mods
 
 
 class InputManager(QObject):
@@ -78,7 +74,7 @@ class InputManager(QObject):
     def __init__(self, app=None, config: dict = None,
                  commit_on_focus_out: bool = True):
         super().__init__(app if isinstance(app, QObject) else None)
-        self.engine = VietnameseInputMethod(config)
+        self.engine = VietnameseEngine(config)
         self.commit_on_focus_out = commit_on_focus_out
         if app is not None and hasattr(app, "installEventFilter"):
             app.installEventFilter(self)
@@ -256,11 +252,11 @@ class InputManager(QObject):
         if not isinstance(widget, (QLineEdit, QTextEdit, QPlainTextEdit)):
             return super().eventFilter(watched, event)
 
-        keysym, mods = _qt_event_to_keys(event)
+        key, mods = _qt_event_to_key(event)
 
         # ---- Phím không map được (F1-F12, PrintScreen...):
         # thả qua, giữ nguyên preedit. ----
-        if keysym == 0:
+        if not key:
             return super().eventFilter(watched, event)
 
         # ---- Ctrl+Space: bật/tắt engine. ----
@@ -291,15 +287,7 @@ class InputManager(QObject):
         self.engine.set_surrounding_text(surrounding_text, surrounding_cursor)
 
         try:
-            result = self.engine.process_key(keysym, mods, False)
-        except TypeError:
-            # Engine nhận 2 tham số — thử lại.
-            try:
-                result = self.engine.process_key(keysym, mods)
-            except Exception:
-                import traceback
-                traceback.print_exc()
-                return super().eventFilter(watched, event)
+            result = self.engine.process_key(key, mods, False)
         except Exception:
             import traceback
             traceback.print_exc()

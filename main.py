@@ -1,7 +1,7 @@
 import sys
 
 from PySide6.QtWidgets import QApplication
-from src.input_manager import InputManager
+from vipy.input_manager import InputManager
 from ui.main_window import MainWindow
 
 def main():

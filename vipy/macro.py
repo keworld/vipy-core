@@ -7,20 +7,25 @@ import os
 logger = logging.getLogger(__name__)
 
 
+def _user_data_directory():
+    config_home = os.environ.get("XDG_CONFIG_HOME")
+    if not config_home:
+        config_home = os.path.join(
+            os.path.expanduser("~"), ".config"
+        )
+    return os.path.join(config_home, "fcitx5-vipy", "data")
+
+
 def load_macros(path: str, macros: dict[str, str]) -> int:
     """Load macros from *path* without replacing configured macros."""
     configured_path = path
     if not os.path.isabs(configured_path):
         here = os.path.dirname(__file__)
         candidates = (
+            os.path.join(_user_data_directory(),
+                         os.path.basename(configured_path)),
             os.path.join(here, configured_path),
             os.path.join(here, "..", "data", configured_path),
-            os.path.expanduser(
-                os.path.join(
-                    "~/.config/fcitx5-vipy/data",
-                    os.path.basename(configured_path),
-                )
-            ),
         )
         configured_path = next(
             (candidate for candidate in candidates

@@ -48,9 +48,9 @@ HOTKEY_MASK = MOD_CTRL | MOD_ALT
 
 class VietnameseEngine:
     def __init__(self, config: dict = None):
-        self._phon = VietnamesePhonology()
         self._config = {
             "input_method": "telex",   # "telex" | "vni"
+            "tone_placement_style": "modern",  # "modern" | "classic"
             "enable_lone_w": True,
             "enable_spell_check": True,
             "enable_macro": True,
@@ -61,6 +61,7 @@ class VietnameseEngine:
         }
         if config:
             self._config.update(config)
+        self._phon = VietnamesePhonology(self._config.get("tone_placement_style", "modern"))
         self._schema = None
         self._dict = SyllableDict.get_instance()
         self._surrounding_text = ""
@@ -131,15 +132,10 @@ class VietnameseEngine:
         if key == KEY_BACKSPACE:
             if self._preedit:
                 self._raw_text = self._raw_text[:-1]
-                if self._literal:
-                    self._literal = self._literal[:-1]
-                else:
-                    self._base = self._base[:-1]
-                    self._base = self._phon.reconstruction(self._base)
-
-                self._sync_preedit()
-
-                self._lone_w_pending = False
+                remaining = self._raw_text
+                self.reset()
+                for raw_key in remaining:
+                    self.process_key(raw_key)
                 return self._result(consumed=True)
             return self._result(consumed=False)   # để app tự xóa
 
@@ -167,25 +163,36 @@ class VietnameseEngine:
             action_type = action.type
             match action:
                 case Action(type="none"):
-                    if self._phon.can_grow(word + key):
-                        word += key
+                    new_word = word + key
+                    if self._phon.can_grow(new_word):
+                        word = self._phon.reconstruction(new_word)
                     else:
-                        literal = key
+                        # English Word Typing Defense / Rollback non-Vietnamese
+                        self._base = ""
+                        self._literal = self._raw_text
+                        self._sync_preedit()
+                        self._lone_w_pending = False
+                        return self._result(consumed=True)
                 case Action(type="mark", value=mark_val):
                     word = self._phon.place_mark(word, mark_val)
+                    word = self._phon.reconstruction(word)
                 case Action(type="tone", value=tone_val):
                     word = self._phon.place_tone(word, tone_val)
+                    word = self._phon.reconstruction(word)
                 case Action(type="toggle_tone"):
                     word = self._phon.strip_tone(word)
+                    word = self._phon.reconstruction(word)
                     literal = key
                 case Action(type="toggle_mark", value=mark_val):
                     word = self._phon.strip_mark(word, mark_val)
+                    word = self._phon.reconstruction(word)
                     literal = key
                 case Action(type="lone_w"):
                     word += "Ư" if key.isupper() else "ư"
+                    word = self._phon.reconstruction(word)
                     action_type = "lone_w"      # giữ cờ
 
-        self._base = self._phon.reconstruction(word)
+        self._base = word
         self._literal += literal
         self._sync_preedit()
 
@@ -219,7 +226,7 @@ class VietnameseEngine:
                            not self._phon.is_valid_shape(self._base))
         needs_recovery = bool(self._literal) or invalid
         if self._config["enable_auto_decompose"] and needs_recovery:
-            text = self._decompose(text)
+            text = self.decompose(text)
         elif self._config["enable_spell_check"] and needs_recovery:
             text = self._raw_text or text
         text = self._apply_macro(text)
@@ -230,15 +237,9 @@ class VietnameseEngine:
                 text = raw_macro
         return text, len(text)
 
-    def _decompose(self, text) -> str:
-        """Return the original keystrokes for direct commitment to the app.
-        :param text:
-        """
-        bare = self._phon.bare(text)
-        if bare ==  text:
-            return text
-        else:
-            return self._raw_text
+    def decompose(self, word: str) -> str:
+        """Return the original keystrokes for direct commitment to the app."""
+        return self._raw_text or word
 
     def get_raw_text(self) -> tuple:
         """
@@ -257,6 +258,9 @@ class VietnameseEngine:
             self._config[key] = bool(value)
             if key == "enable_lone_w" and self._schema.name() == "telex":
                 self._schema.set_lone_w(self._config[key])
+        elif key == "tone_placement_style":
+            self._config[key] = "classic" if str(value).lower() == "classic" else "modern"
+            self._phon.set_tone_style(self._config[key])
         elif key == "input_method":
             self._config[key] = value
             self._load_schema(value)

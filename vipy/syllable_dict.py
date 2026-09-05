@@ -36,6 +36,15 @@ _STRIP_TONES = {
 _TONE_LETTERS = frozenset(_STRIP_TONES)
 
 
+def _user_data_directory():
+    config_home = os.environ.get("XDG_CONFIG_HOME")
+    if not config_home:
+        config_home = os.path.join(
+            os.path.expanduser("~"), ".config"
+        )
+    return os.path.join(config_home, "fcitx5-vipy", "data")
+
+
 class SyllableDict:
     _instance = None
 
@@ -60,11 +69,9 @@ class SyllableDict:
                 candidates.append(os.path.join(here, configured))
         else:
             candidates = [
+                os.path.join(_user_data_directory(), "vietnamese.cm.dict"),
                 os.path.join(here, "dict", "vietnamese.cm.dict"),
                 os.path.join(here, "..", "data", "vietnamese.cm.dict"),
-                os.path.expanduser(
-                    "~/.config/fcitx5-vipy/data/vietnamese.cm.dict"
-                ),
                 os.path.join(os.getcwd(), "dict", "vietnamese.cm.dict"),
             ]
         path = next((c for c in candidates if os.path.isfile(c)), candidates[0])

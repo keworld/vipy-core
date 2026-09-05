@@ -39,6 +39,12 @@ class InputSchema(ABC):
 
             # Place Tone
             if cls.PHON.has_vowel(base_string) and cls.PHON.can_grow(base_string):
+                # Quy tắc âm vị học: âm tiết có phụ âm cuối tắc vô thanh (c, p, t, ch)
+                # chỉ nhận thanh 1 (sắc) hoặc 5 (nặng).
+                final_consonant = cls.PHON.get_final_consonant(base_string)
+                if final_consonant in ('c', 'p', 't', 'ch') and tone not in (1, 5):
+                    return Action(value=0, type='none')
+
                 toned = cls.PHON.place_tone(base_string, tone)
                 if toned != base_string:
                     return Action(value=tone, type='tone')

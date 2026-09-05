@@ -92,7 +92,7 @@ class VietnamesePhonology:
         ),
         'triple': (
             'iêu', 'oai', 'oao', 'oay', 'oeo', 'uai', 'uay', 'uây',
-            'uôi', 'uyu', 'uyê', 'ươu', 'yêu'
+            'uôi', 'uyu', 'uyê','ươi', 'ươu', 'yêu'
         ),
     }
 

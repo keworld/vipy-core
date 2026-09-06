@@ -225,13 +225,14 @@ class VietnameseEngine:
             invalid = bool(self._base and
                            not self._phon.is_valid_shape(self._base))
 
-        if self._config["enable_auto_decompose"] and invalid:
-            bareText = self._phon.bare(text)
-            text = self._raw_text if (bareText != text and self._raw_text) else text
+        needs_recovery = bool(self._literal) or invalid
 
-        elif self._config["enable_spell_check"] and invalid:
+        if self._config["enable_auto_decompose"] and needs_recovery:
+            bare = self._phon.bare(text)
+            text = text if bare == text else (text if not self._raw_text else self._raw_text)
+            
+        elif self._config["enable_spell_check"] and needs_recovery:
             text = self._raw_text or text
-
         text = self._apply_macro(text)
         if (text == self._preedit and self._raw_text != self._preedit
                 and self._config["enable_macro"]):

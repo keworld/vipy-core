@@ -33,7 +33,7 @@ Core engine không phụ thuộc vào một framework giao diện cụ thể. Ng
 Clone repository:
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/vipy-core.git
+git clone https://github.com/keworld/vipy-core.git
 cd vipy-core
 ```
 
